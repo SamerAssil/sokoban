@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants,
   System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, skblib, Vcl.ExtCtrls,
-  Vcl.AppEvnts;
+  Vcl.AppEvnts, Vcl.ComCtrls;
 
 type
   TForm1 = class(TForm)
@@ -15,15 +15,20 @@ type
     Image1: TImage;
     Button2: TButton;
     Button3: TButton;
+    Button4: TButton;
+    Button5: TButton;
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure Button1Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure Button3Click(Sender: TObject);
+    procedure Button5Click(Sender: TObject);
+    procedure Button4Click(Sender: TObject);
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
   protected
     procedure DialogKey(var Msg: TWMKey); message CM_DIALOGKEY;
   private
-    procedure WMEraseBkgnd(var Message: TWMEraseBkgnd);
+    procedure WMEraseBkgnd(var Message: TWMEraseBkgnd);  message WM_ERASEBKGND;
     procedure onGameComplete;
     procedure StartGame(aLevel: integer);
   public
@@ -45,12 +50,22 @@ end;
 
 procedure TForm1.Button2Click(Sender: TObject);
 begin
- StartGame(2);
+  StartGame(2);
 end;
 
 procedure TForm1.Button3Click(Sender: TObject);
 begin
- StartGame(3);
+  StartGame(3);
+end;
+
+procedure TForm1.Button4Click(Sender: TObject);
+begin
+  game.ZoomOut;
+end;
+
+procedure TForm1.Button5Click(Sender: TObject);
+begin
+  game.ZoomIn;
 end;
 
 procedure TForm1.DialogKey(var Msg: TWMKey);
@@ -58,11 +73,16 @@ begin
   case Msg.CharCode of
     VK_DOWN, VK_UP, VK_RIGHT, VK_LEFT:
       begin
-          onKeyDown(Self, Msg.CharCode, KeyDataToShiftState(Msg.KeyData));
+        onKeyDown(Self, Msg.CharCode, KeyDataToShiftState(Msg.KeyData));
         Msg.Result := 1;
       end;
   else
   end;
+end;
+
+procedure TForm1.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  game.Free;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
@@ -88,7 +108,7 @@ end;
 
 procedure TForm1.onGameComplete;
 begin
- ShowMessage('Nice');
+  ShowMessage('Nice');
 end;
 
 procedure TForm1.StartGame(aLevel: integer);

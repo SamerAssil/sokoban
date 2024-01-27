@@ -13,6 +13,7 @@ type
   TPosition = record
     Col: integer;
     Row: integer;
+    procedure Shift(aDir: TDirection);
   end;
 
   TStringListHelper = class Helper for TStringList
@@ -21,6 +22,7 @@ type
     procedure Fill(aWidth, aHeight: integer; aChar: Char);
     procedure MoveToStringList(aPos: TPosition; aTarget: TStringList);
     function IsGoal(aPos: TPosition): Boolean;
+    function IsBox(aPos: TPosition): Boolean;
     function isPlayer(aPos: TPosition): Boolean;
     function AtPos(aPos: TPosition): Char;
     procedure ReplaceAtPos(aPos: TPosition; aNewChar: Char);
@@ -38,14 +40,14 @@ type
   private
     FMap: TMap;
     FGoals: TGoals;
-    Player: TPosition;
-    [weak]
+    ThePlayer: TPosition;
     game: TGame;
   public
     constructor create(aGame: TGame);
     destructor Destroy; override;
     procedure LoadLevel(aNo: integer);
     procedure LoadAssets;
+    function isBoxInPlace(aPosition: TPosition): Boolean;
     function MovePlayer(aDirection: TDirection): TPosition;
     property Map: TMap read FMap write FMap;
     property Goals: TGoals read FGoals write FGoals;
@@ -57,7 +59,6 @@ type
     Image: TPngImage;
   end;
 
-  TSymbolsAnd = TObjectDictionary<Char, String>;
   TGameState = (gsStart, gsFinish, gsRun);
 
   TOnCompletePro = procedure() of Object;
@@ -70,39 +71,63 @@ type
   private
     FState: TGameState;
     FOnComplete: TOnCompletePro;
+    FZoom: integer;
     function findAsset(aSymbol: Char): TAsset;
     procedure SetState(const Value: TGameState);
+    procedure DrawAsset(aPos: TPosition; const [Ref] Asset: TAsset);
+    procedure SetZoom(const Value: integer);
   public
     constructor create(aOutputImage: TImage; aOnComplete: TOnCompletePro = nil);
     destructor Destroy; override;
     procedure Draw;
+    procedure ZoomOut;
+    procedure ZoomIn;
     function CheckCompleted: Boolean;
     procedure Step(aDirection: TDirection);
     property Level: TLevel read FLevel write FLevel;
     property OutputImage: TImage read FOutputImage;
     property State: TGameState read FState write SetState;
     property OnComplete: TOnCompletePro read FOnComplete write FOnComplete;
+    property Zoom: integer read FZoom write SetZoom default 30;
   end;
 
 const
-  BLOCK_SIZE = 64;
-  Player = '@';
-  PlayerU = 'U';
+  ZOOM_STEP = 5;
+  ZOOM_MAX = 100;
+  ZOOM_MIN = 10;
+  PLAYER = '@';
   GOAL = 'X';
   WALL = '#';
   BOX = 'O';
   EMPTY = '.';
-  DEAD_END_POS: TPosition = (Col: - 1; Row: - 1);
+  BOX_IN_PLACE = '+';
 
-  SYMBOLS: array [0 .. 4] of Char = (Player, EMPTY, WALL, GOAL, BOX);
-  RS_NAMES: array [0 .. 4] of string = ('player_front', 'empty', 'wall',
-    'goal', 'box');
+  SYMBOLS: array [0 .. 5] of Char = (PLAYER, EMPTY, WALL, GOAL, BOX,
+    BOX_IN_PLACE);
+  RS_NAMES: array [0 .. 5] of string = ('player_front', 'empty', 'wall', 'goal',
+    'box', 'BoxInPlace');
 
 function Position(aCol, aRow: integer): TPosition; inline;
 
 {$ZEROBASEDSTRINGS ON}
 
 implementation
+
+{ TPosition }
+
+procedure TPosition.Shift(aDir: TDirection);
+begin
+  case aDir of
+    dUp:
+      dec(Row);
+    dDown:
+      inc(Row);
+    dLeft:
+      dec(Col);
+    dRight:
+      inc(Col);
+  end;
+end;
 
 { TLevel }
 
@@ -120,21 +145,27 @@ end;
 destructor TLevel.Destroy;
 begin
   Map.Free;
+  Goals.Free;
+end;
+
+function TLevel.isBoxInPlace(aPosition: TPosition): Boolean;
+begin
+  Result := (Map.IsBox(aPosition)) and (Goals.IsGoal(aPosition));
 end;
 
 procedure TLevel.LoadAssets;
 var
   png: TPngImage;
-  asset: TAsset;
+  Asset: TAsset;
 begin
   for var i: integer := low(SYMBOLS) to high(SYMBOLS) do
   begin
     png := TPngImage.create;
     png.LoadFromResourceName(HInstance, RS_NAMES[i]);
-    asset.symbol := SYMBOLS[i];
-    asset.Rs_Name := RS_NAMES[i];
-    asset.Image := png;
-    game.Assets := game.Assets + [asset];
+    Asset.symbol := SYMBOLS[i];
+    Asset.Rs_Name := RS_NAMES[i];
+    Asset.Image := png;
+    game.Assets := game.Assets + [Asset];
   end;
 end;
 
@@ -146,44 +177,49 @@ begin
   Goals.Free;
   game.OutputImage.Picture.Assign(nil);
   rs := TResourceStream.create(HInstance, 'lvl' + aNo.ToString, RT_RCDATA);
+  try
 
-  Map := TMap.create(TDuplicates.dupAccept, false, false);
-  Map.LoadFromStream(rs);
+    Map := TMap.create(TDuplicates.dupAccept, false, false);
+    Map.LoadFromStream(rs);
 
-  Goals := TGoals.create(TDuplicates.dupAccept, false, false);;
-  Goals.Fill(Map.Width, Map.Height, EMPTY);
+    Goals := TGoals.create(TDuplicates.dupAccept, false, false);;
+    Goals.Fill(Map.Width, Map.Height, EMPTY);
 
-  for var Col: integer := 0 to Map.Width - 1 do
-    for var Row: integer := 0 to Map.Height - 1 do
-    begin
-      if Map.isPlayer(Position(Col, Row)) then
-        Player := Position(Col, Row);
-      if Map.IsGoal(Position(Col, Row)) then
-        Map.MoveToStringList(Position(Col, Row), Goals);
-    end;
-
-  LoadAssets;
-  game.Draw;
-  game.State := gsRun;
+    for var Col: integer := 0 to Map.Width - 1 do
+      for var Row: integer := 0 to Map.Height - 1 do
+      begin
+        case Map.AtPos(Position(Col, Row)) of
+          PLAYER:
+            ThePlayer := Position(Col, Row);
+          GOAL:
+            Map.MoveToStringList(Position(Col, Row), Goals);
+        end;
+      end;
+    LoadAssets;
+    game.Draw;
+    game.State := gsRun;
+  finally
+    rs.Free;
+  end;
 end;
 
 function TLevel.MovePlayer(aDirection: TDirection): TPosition;
 var
   p, nPos: TPosition;
 begin
-  case Map.Neighbor(Player, aDirection, nPos) of
+  case Map.Neighbor(ThePlayer, aDirection, nPos) of
     EMPTY:
-      Player := Map.MoveChar(Player, aDirection);
+      ThePlayer := Map.MoveChar(ThePlayer, aDirection);
     BOX:
       begin
         if Map.Neighbor(nPos, aDirection, p) = EMPTY then
         begin
           Map.MoveChar(nPos, aDirection);
-          Player := Map.MoveChar(Player, aDirection);
+          ThePlayer := Map.MoveChar(ThePlayer, aDirection);
         end;
       end;
   end;
-  Result := Player;
+  Result := ThePlayer;
 end;
 
 { TStringListHelper }
@@ -208,14 +244,19 @@ begin
   Result := Self.Count;
 end;
 
+function TStringListHelper.IsBox(aPos: TPosition): Boolean;
+begin
+  Result := Self.AtPos(aPos) = BOX;
+end;
+
 function TStringListHelper.IsGoal(aPos: TPosition): Boolean;
 begin
-  Result := Self[aPos.Row].Chars[aPos.Col] = GOAL;
+  Result := Self.AtPos(aPos) = GOAL;
 end;
 
 function TStringListHelper.isPlayer(aPos: TPosition): Boolean;
 begin
-  Result := Self.AtPos(aPos) = Player;
+  Result := Self.AtPos(aPos) = PLAYER;
 end;
 
 function TStringListHelper.MoveChar(aPos: TPosition; aDirection: TDirection)
@@ -225,18 +266,10 @@ var
   newPos: TPosition;
 begin
   chr := Self.AtPos(aPos);
-  case aDirection of
-    dUp:
-      newPos := Position(aPos.Col, aPos.Row - 1);
-    dDown:
-      newPos := Position(aPos.Col, aPos.Row + 1);
-    dLeft:
-      newPos := Position(aPos.Col - 1, aPos.Row);
-    dRight:
-      newPos := Position(aPos.Col + 1, aPos.Row);
-  end;
+  newPos := aPos;
+  newPos.Shift(aDirection);
   Self.ReplaceAtPos(newPos, chr);
-  Self.ReplaceAtPos(Position(aPos.Col, aPos.Row), EMPTY);
+  Self.ReplaceAtPos(aPos, EMPTY);
   Result := newPos;
 end;
 
@@ -245,7 +278,7 @@ procedure TStringListHelper.MoveToStringList(aPos: TPosition;
 var
   chr: Char;
 begin
-  chr := Self.AtPos(Position(aPos.Col, aPos.Row));
+  chr := Self.AtPos(aPos);
   aTarget.ReplaceAtPos(aPos, chr);
   Self.ReplaceAtPos(aPos, EMPTY);
 end;
@@ -255,16 +288,8 @@ function TStringListHelper.Neighbor(aPos: TPosition; aDirection: TDirection;
 var
   pos: TPosition;
 begin
-  case aDirection of
-    dUp:
-      pos := Position(aPos.Col, aPos.Row - 1);
-    dDown:
-      pos := Position(aPos.Col, aPos.Row + 1);
-    dLeft:
-      pos := Position(aPos.Col - 1, aPos.Row);
-    dRight:
-      pos := Position(aPos.Col + 1, aPos.Row);
-  end;
+  pos := aPos;
+  pos.Shift(aDirection);
   NeighberPos := pos;
   Result := AtPos(pos);
 end;
@@ -287,6 +312,7 @@ end;
 
 constructor TGame.create(aOutputImage: TImage; aOnComplete: TOnCompletePro);
 begin
+  FZoom := (ZOOM_MAX - ZOOM_MIN) div 2;
   FLevel := TLevel.create(Self);
   FOutputImage := aOutputImage;
   State := gsStart;
@@ -296,38 +322,55 @@ end;
 destructor TGame.Destroy;
 begin
   Level.Free;
+  for var i: integer := Low(Assets) to High(Assets) do
+    Assets[i].Image.Free;
 end;
 
 procedure TGame.Draw;
 var
-  asset, EmptyAsset: TAsset;
+  Asset, EmptyAsset, BoxInPlaceAsset: TAsset;
+  pos: TPosition;
 begin
+  OutputImage.Canvas.Brush.Color := clWindow;
+  OutputImage.Canvas.FillRect(OutputImage.ClientRect);
   EmptyAsset := findAsset(EMPTY);
+  BoxInPlaceAsset := findAsset(BOX_IN_PLACE);
 
   for var Col: integer := 0 to Level.Map.Width - 1 do
     for var Row: integer := 0 to Level.Map.Height - 1 do
     begin
-      OutputImage.Canvas.Draw(Col * BLOCK_SIZE, Row * BLOCK_SIZE,
-        EmptyAsset.Image);
+      pos := Position(Col, Row);
+      DrawAsset(pos, EmptyAsset);
+      // clear the boad
+      Asset := findAsset(Level.Goals.AtPos(pos));
+      DrawAsset(pos, Asset);
 
-      asset := findAsset(Level.Goals.AtPos(Position(Col, Row)));
-      OutputImage.Canvas.Draw(Col * BLOCK_SIZE, Row * BLOCK_SIZE, asset.Image);
-
-      asset := findAsset(Level.Map.AtPos(Position(Col, Row)));
-      if asset.symbol <> EMPTY then
-        OutputImage.Canvas.Draw(Col * BLOCK_SIZE, Row * BLOCK_SIZE,
-          asset.Image);
+      Asset := findAsset(Level.Map.AtPos(pos));
+      // drow map items
+      if Asset.symbol <> EMPTY then
+        DrawAsset(pos, Asset);
+      // Drow Box in goals
+      if Level.isBoxInPlace(pos) then
+        DrawAsset(pos, BoxInPlaceAsset)
     end;
+end;
+
+procedure TGame.DrawAsset(aPos: TPosition; const [Ref] Asset: TAsset);
+begin
+  OutputImage.Canvas.StretchDraw(Rect(aPos.Col * Zoom, aPos.Row * Zoom,
+    (aPos.Col * Zoom) + Zoom, (aPos.Row * Zoom) + Zoom), Asset.Image);
+  // OutputImage.Canvas.Draw(aPos.Col * BLOCK_SIZE, aPos.Row * BLOCK_SIZE,
+  // Asset.Image);
 end;
 
 function TGame.findAsset(aSymbol: Char): TAsset;
 var
-  asset: TAsset;
+  Asset: TAsset;
 begin
-  for asset in Assets do
-    if aSymbol = asset.symbol then
+  for Asset in Assets do
+    if aSymbol = Asset.symbol then
     begin
-      Result := asset;
+      Result := Asset;
       exit;
     end;
 end;
@@ -359,14 +402,31 @@ begin
   end;
 end;
 
-procedure TGame.Step(aDirection: TDirection);
-var
-  p: TPosition;
+procedure TGame.SetZoom(const Value: integer);
 begin
-  p.Col := 10;
+  FZoom := Value;
+  if FZoom > ZOOM_MAX then
+    FZoom := ZOOM_MAX;
+  if FZoom < ZOOM_MIN then
+    FZoom := ZOOM_MIN;
+  Draw;
+end;
+
+procedure TGame.Step(aDirection: TDirection);
+begin
   Level.MovePlayer(aDirection);
   Draw;
   CheckCompleted;
+end;
+
+procedure TGame.ZoomIn;
+begin
+  Zoom := Zoom + ZOOM_STEP;
+end;
+
+procedure TGame.ZoomOut;
+begin
+  Zoom := Zoom - ZOOM_STEP;
 end;
 
 end.

@@ -12,6 +12,7 @@ object Form1: TForm1
   Font.Style = []
   KeyPreview = True
   Position = poScreenCenter
+  OnClose = FormClose
   OnCreate = FormCreate
   OnKeyDown = FormKeyDown
   TextHeight = 15
@@ -64,5 +65,23 @@ object Form1: TForm1
     Caption = 'Level 3'
     TabOrder = 3
     OnClick = Button3Click
+  end
+  object Button4: TButton
+    Left = 528
+    Top = 128
+    Width = 75
+    Height = 25
+    Caption = '-'
+    TabOrder = 4
+    OnClick = Button4Click
+  end
+  object Button5: TButton
+    Left = 631
+    Top = 128
+    Width = 75
+    Height = 25
+    Caption = '+'
+    TabOrder = 5
+    OnClick = Button5Click
   end
 end
