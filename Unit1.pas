@@ -28,7 +28,6 @@ type
   protected
     procedure DialogKey(var Msg: TWMKey); message CM_DIALOGKEY;
   private
-    procedure WMEraseBkgnd(var Message: TWMEraseBkgnd);  message WM_ERASEBKGND;
     procedure onGameComplete;
     procedure StartGame(aLevel: integer);
   public
@@ -118,9 +117,6 @@ begin
   Memo1.Lines := game.Level.map;
 end;
 
-procedure TForm1.WMEraseBkgnd(var Message: TWMEraseBkgnd);
-begin
-  Message.Result := LRESULT(False);
-end;
+
 
 end.
