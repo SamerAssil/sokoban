@@ -1,8 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
-  <Transactions>
-    <Transaction>2024/01/27 11:53:54.388,=C:\Users\samerassil\Documents\sokoban\assests\Crate_Blue.png</Transaction>
-    <Transaction>2024/01/27 12:35:31.820,C:\Users\samerassil\Documents\sokoban\assests\Crate_Blue.png=</Transaction>
-    <Transaction>2024/01/27 12:35:31.934,=C:\Users\samerassil\Documents\sokoban\assests\CrateDark_Red.png</Transaction>
+	<Transactions>
+    <Transaction>2024/01/27 11:53:54.000.388,=C:\Users\samerassil\Documents\sokoban\assests\Crate_Blue.png</Transaction>
+    <Transaction>2024/01/27 12:35:31.000.934,=C:\Users\samerassil\Documents\sokoban\assests\CrateDark_Red.png</Transaction>
+    <Transaction>2024/01/27 12:35:31.000.820,C:\Users\samerassil\Documents\sokoban\assests\Crate_Blue.png=</Transaction>
   </Transactions>
 </BorlandProject>

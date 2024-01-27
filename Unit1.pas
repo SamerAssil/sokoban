@@ -112,6 +112,8 @@ end;
 
 procedure TForm1.StartGame(aLevel: integer);
 begin
+  if assigned(game) then
+    game.Free;
   game := TGame.Create(Image1, onGameComplete);
   game.Level.LoadLevel(aLevel);
   Memo1.Lines := game.Level.map;
