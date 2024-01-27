@@ -1,7 +1,7 @@
 object Form1: TForm1
   Left = 0
   Top = 0
-  Caption = 'Form1'
+  Caption = 'Sokoban'
   ClientHeight = 494
   ClientWidth = 757
   Color = clBtnFace
